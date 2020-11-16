@@ -2,6 +2,7 @@ import { CookiesStatic } from 'js-cookie';
 import merge from 'lodash.merge';
 
 import Cache, { DefaultCache } from './cache';
+import ErrorResponse from './error-response';
 import isPromise from './is-promise';
 import PayloadTransformer from './payload-transformer';
 import RequestFactory from './request-factory';
@@ -9,6 +10,10 @@ import RequestOptions from './request-options';
 import RequestSenderOptions from './request-sender-options';
 import Response from './response';
 import Timeout from './timeout';
+
+const isValidResponse = <T>(res: Response<unknown | T>): res is Response<T> => {
+    return res.status >= 200 && res.status < 300;
+};
 
 export default class RequestSender {
     private _cache: Cache;
@@ -22,9 +27,9 @@ export default class RequestSender {
         this._cache = this._options.cache || new DefaultCache();
     }
 
-    sendRequest<T>(url: string, options?: RequestOptions): Promise<Response<T>> {
+    sendRequest<TSuccess, TError = TSuccess>(url: string, options?: RequestOptions): Promise<Response<TSuccess>> {
         const requestOptions = this._mergeDefaultOptions(url, options);
-        const cachedRequest = this._getCachedRequest<T>(url, requestOptions);
+        const cachedRequest = this._getCachedRequest<TSuccess>(url, requestOptions);
 
         if (cachedRequest) {
             return Promise.resolve(cachedRequest);
@@ -34,13 +39,13 @@ export default class RequestSender {
 
         return new Promise((resolve, reject) => {
             const requestHandler = () => {
-                const response = this._payloadTransformer.toResponse<T>(request);
+                const response = this._payloadTransformer.toResponse<TSuccess, TError>(request);
 
-                if (response.status >= 200 && response.status < 300) {
+                if (isValidResponse<TSuccess>(response)) {
                     this._cacheRequest(url, requestOptions, response);
                     resolve(response);
                 } else {
-                    reject(response);
+                    reject(new ErrorResponse(url, response));
                 }
             };
 

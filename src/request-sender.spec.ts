@@ -1,5 +1,6 @@
 import * as cookie from 'js-cookie';
 
+import ErrorResponse, { ErrorResponseType } from './error-response';
 import PayloadTransformer from './payload-transformer';
 import RequestFactory from './request-factory';
 import RequestSender from './request-sender';
@@ -177,7 +178,7 @@ describe('RequestSender', () => {
             expect(request.send).toHaveBeenCalledWith(requestBody);
         });
 
-        it('resolves with the response of the request', () => {
+        it('resolves with the response of the request', async () => {
             const response = getResponse({ message: 'foobar' });
             const event = new ProgressEvent('load');
 
@@ -189,11 +190,11 @@ describe('RequestSender', () => {
                 request.onload(event);
             }
 
-            expect(promise).resolves.toEqual(response);
+            await expect(promise).resolves.toEqual(response);
             expect(payloadTransformer.toResponse).toHaveBeenCalledWith(request);
         });
 
-        it('rejects with the response of the request if the server returns an error', () => {
+        it('rejects with the response of the request if the server returns an error', async () => {
             const response = getErrorResponse({ message: 'foobar' });
             const event = new ProgressEvent('load');
 
@@ -208,11 +209,11 @@ describe('RequestSender', () => {
                 request.onload(event);
             }
 
-            expect(promise).rejects.toEqual(response);
+            await expect(promise).rejects.toThrowError(response.statusText);
             expect(payloadTransformer.toResponse).toHaveBeenCalledWith(request);
         });
 
-        it('rejects with the response of the request if it fails', () => {
+        it('rejects with the response of the request if it fails', async () => {
             const response = getTimeoutResponse();
             const event = new ProgressEvent('error');
 
@@ -227,8 +228,31 @@ describe('RequestSender', () => {
                 request.onerror(event);
             }
 
-            expect(promise).rejects.toEqual(response);
+            await expect(promise).rejects.toThrowError(response.statusText);
             expect(payloadTransformer.toResponse).toHaveBeenCalledWith(request);
+        });
+
+        it('includes request information in the error response', async () => {
+            const response = getErrorResponse({ message: 'foobar' });
+            const event = new ProgressEvent('load');
+
+            jest.spyOn(payloadTransformer, 'toResponse').mockReturnValue(response);
+
+            const promise = requestSender.sendRequest(url, {
+                body: { message: 'foobar' },
+                method: 'POST',
+            });
+
+            if (request.onload) {
+                request.onload(event);
+            }
+
+            await expect(promise).rejects.toMatchObject({
+                url,
+                response,
+                type: ErrorResponseType,
+                status: response.status,
+            });
         });
 
         it('aborts the request when resolving the `timeout` promise', async () => {
@@ -246,7 +270,7 @@ describe('RequestSender', () => {
                 request.onabort(event);
             }
 
-            expect(promise).rejects.toEqual(response);
+            await expect(promise).rejects.toThrowError(response.statusText);
             expect(request.abort).toHaveBeenCalled();
             expect(payloadTransformer.toResponse).toHaveBeenCalledWith(request);
         });
@@ -287,7 +311,7 @@ describe('RequestSender', () => {
             });
         });
 
-        it('caches GET requests when cache option is set', () => {
+        it('caches GET requests when cache option is set', async () => {
             const response = getResponse({ message: 'foobar' });
             const event = new ProgressEvent('load');
 
@@ -307,12 +331,12 @@ describe('RequestSender', () => {
                 request.onload(event);
             }
 
-            expect(firstPromise).resolves.toEqual(response);
-            expect(secondPromise).resolves.toEqual(response);
+            await expect(firstPromise).resolves.toEqual(response);
+            await expect(secondPromise).resolves.toEqual(response);
             expect(requestFactory.createRequest).toHaveBeenCalledTimes(1);
         });
 
-        it('does not cache requests when method is not GET', () => {
+        it('does not cache requests when method is not GET', async () => {
             const response = getResponse({ message: 'foobar' });
             const event = new ProgressEvent('load');
 
@@ -332,12 +356,12 @@ describe('RequestSender', () => {
                 request.onload(event);
             }
 
-            expect(firstPromise).resolves.toEqual(response);
-            expect(secondPromise).resolves.toEqual(response);
+            await expect(firstPromise).resolves.toEqual(response);
+            await expect(secondPromise).resolves.toEqual(response);
             expect(requestFactory.createRequest).toHaveBeenCalledTimes(2);
         });
 
-        it('uses custom Cache instance if provided', () => {
+        it('uses custom Cache instance if provided', async () => {
             const customCache = {
                 read: jest.fn(),
                 write: jest.fn(),
@@ -357,7 +381,7 @@ describe('RequestSender', () => {
                 request.onload(event);
             }
 
-            expect(promise).resolves.toEqual(response);
+            await await expect(promise).resolves.toEqual(response);
             expect(customCache.read).toHaveBeenCalled();
             expect(customCache.write).toHaveBeenCalled();
         });

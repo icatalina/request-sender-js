@@ -6,8 +6,7 @@ export default class Timeout {
     constructor(
         private _delay?: number
     ) {
-        // tslint:disable-next-line:no-empty
-        this._resolve = () => {};
+        this._resolve = () => undefined;
 
         this._promise = new Promise(resolve => {
             this._resolve = resolve;
